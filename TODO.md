@@ -12,8 +12,8 @@
 ### Partner B (Infra & UX)
 - [x] Deploy the FastAPI scaffold to Render (web service live with `/api/hello`)
 - [x] Provision Render Postgres — get `DATABASE_URL`
-- [ ] Add all env vars to Render dashboard (Neo4j, Tavily, Fastino, Modulate, DB, Scout)
-- [ ] Create the mock status page (GitHub Gist or Render static site)
+- [x] Add all env vars to Render dashboard (Neo4j, Tavily, Fastino, Modulate, DB, Scout)
+- [x] Create the mock status page (GitHub Gist or Render static site)
   - Content: `{"status": "operational", "competitor": "DigitalOcean"}`
 
 ---
@@ -33,7 +33,7 @@
   - Returns: `{ "competitors": [...], "pricing_insights": [...], "complaints": [...] }`
 
 ### Partner B
-- [ ] Integrate Modulate API for voice-to-text (`backend/services/modulate_service.py`)
+- [x] Integrate Modulate API for voice-to-text (`backend/services/modulate_service.py`)
 - [ ] Connect Tavily client in backend (`pip install tavily-python`, add to requirements)
 - [ ] Build `POST /api/product` endpoint — accepts product description text, stores it, kicks off agent
 - [ ] Set up WebSocket `/api/ws/feed` for real-time agent activity streaming to frontend
