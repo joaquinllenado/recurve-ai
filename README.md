@@ -5,7 +5,7 @@ A self-improving autonomous SDR (Sales Development Rep) agent that generates sal
 ## What It Does
 
 1. **Strategy Generation** — Given a product description (voice or text), the agent uses an SLM + web research to generate an Ideal Customer Profile (ICP), target keywords, and competitor landscape.
-2. **Lead Discovery & Validation** — Finds leads matching the ICP, then fact-checks each one with live web data (Tavily). If a lead's tech stack or situation doesn't match, the agent logs a correction.
+2. **Lead Classification & Validation** — Finds leads matching the ICP, then fact-checks each one with live web data (Tavily). A fine-tuned SLM classifier labels each lead as **Strike** (pursue now), **Monitor** (watch), or **Disregard** (bad fit). Mismatches produce Lesson nodes for self-correction.
 3. **Self-Improvement Loop** — Corrections are stored as "Lesson" nodes in Neo4j. On the next cycle, the agent reads its own lessons and refines its strategy and search criteria autonomously.
 4. **Trigger-Based Pivots** — A background scout monitors external signals (competitor outages, price changes). When a trigger fires, the agent drafts context-aware outreach in real time.
 
@@ -25,7 +25,7 @@ A self-improving autonomous SDR (Sales Development Rep) agent that generates sal
 │                                                       │
 │  POST /api/product    — Ingest product description    │
 │  GET  /api/strategy   — Current ICP & strategy        │
-│  GET  /api/leads      — Scored lead list              │
+│  GET  /api/leads      — Classified lead list           │
 │  GET  /api/lessons    — Self-correction log           │
 │  GET  /api/graph      — Neo4j subgraph for viz        │
 │  POST /api/mock-trigger — Simulate a scout alert      │
@@ -51,7 +51,7 @@ A self-improving autonomous SDR (Sales Development Rep) agent that generates sal
 | Backend     | FastAPI (Python)                    | API, agent loop, background workers         |
 | Database    | PostgreSQL (Render)                 | Lead storage, logs                          |
 | Graph DB    | Neo4j (Sandbox or Aura free tier)   | Strategy nodes, lessons, relationships      |
-| SLM         | Fastino Pioneer (`Qwen/Qwen3-8B`)  | ICP generation, lead scoring, pivots        |
+| SLM         | Fastino Pioneer (`Qwen/Qwen3-8B`)  | ICP generation, lead classification, pivots |
 | Web Search  | Tavily API                          | Competitive research, lead fact-checking    |
 | Voice       | Modulate API (Velma-2 STT)          | Voice-to-text product description intake    |
 | Scout       | Yutori                              | Background monitoring of external signals   |
@@ -61,17 +61,18 @@ A self-improving autonomous SDR (Sales Development Rep) agent that generates sal
 
 ```cypher
 // Strategy nodes (versioned)
-(:Strategy {version: INT, icp: STRING, keywords: [STRING], competitors: [STRING], created_at: DATETIME})
+(:Strategy {version: INT, product_description: STRING, icp: STRING, keywords: [STRING], competitors: [STRING], created_at: DATETIME})
 
-// Leads
-(:Company {name: STRING, domain: STRING, tech_stack: [STRING], employees: INT, funding: STRING, score: INT})
+// Leads — classification is NULL at seed time, computed on-the-fly by the SLM
+(:Company {name: STRING, domain: STRING, tech_stack: [STRING], employees: INT, funding: STRING, classification: STRING?})
+  // classification: "Strike" | "Monitor" | "Disregard" | NULL (unclassified)
 
 // Evidence from web research
 (:Evidence {source_url: STRING, summary: STRING, retrieved_at: DATETIME})
 
 // Lessons learned from corrections
 (:Lesson {lesson_id: STRING, type: STRING, details: STRING, timestamp: DATETIME})
-  // types: "TechStackMismatch", "CompanyTooSmall", "ContractLockIn", "SegmentPivot", etc.
+  // types: "TechStackMismatch", "CompanyTooSmall", "ContractLockIn", "Disregard", "SegmentPivot", etc.
 
 // Relationships
 (:Strategy)-[:TARGETS]->(:Company)
@@ -87,6 +88,32 @@ CREATE CONSTRAINT lesson_id IF NOT EXISTS FOR (l:Lesson) REQUIRE l.lesson_id IS 
 CREATE INDEX evidence_url IF NOT EXISTS FOR (e:Evidence) ON (e.source_url);
 ```
 
+## SLM Classification Model
+
+The lead qualification step uses a **fine-tuned classifier** (Fastino Pioneer / Qwen3-8B) that labels
+each lead into one of three categories:
+
+| Label        | Meaning                                                        | Action          |
+|-------------|----------------------------------------------------------------|-----------------|
+| **Strike**    | Strong product fit + urgent, time-bound trigger event         | Pursue now      |
+| **Monitor**   | Potential fit but no urgent trigger — worth watching           | Watch & revisit |
+| **Disregard** | Poor fit — wrong industry, too small, or fundamentally misaligned | Skip            |
+
+### Input format (matches fine-tuning training data)
+
+```
+Product/Service Description: <the product being sold>
+Trigger Events: <recent signals at the target company>
+Company Context: <target company profile — size, stack, funding>
+```
+
+### Output
+
+A single label: `Strike`, `Monitor`, or `Disregard`.
+
+There is **no numeric score**. Classification is computed on-the-fly during the validation
+loop — Company nodes start unclassified and receive a label only after the SLM evaluates them.
+
 ## Key Agent Flows
 
 ### Flow 1: Strategy Generation (from product description)
@@ -96,14 +123,15 @@ Product text → Tavily (competitor research) → Fastino SLM → ICP JSON outpu
   → ICP JSON: { "icp": "...", "keywords": [...], "competitors": [...] }
 ```
 
-### Flow 2: Lead Validation & Self-Correction
+### Flow 2: Lead Classification & Self-Correction
 ```
 For each lead:
   1. Tavily search: "{company} engineering blog tech stack 2026"
-  2. Fastino SLM compares CRM data vs. Tavily findings
-  3. If mismatch → create Lesson node in Neo4j
-  4. Update lead score
-  5. If >60% of leads fail validation → trigger Strategy Pivot
+  2. Build classifier input: product description + trigger events + company context
+  3. Fine-tuned SLM classifies → Strike / Monitor / Disregard
+  4. Store classification on Company node
+  5. If Disregard → create Lesson node with mismatch type
+  6. If >60% of leads are Disregard → trigger Strategy Pivot
 ```
 
 ### Flow 3: Trigger-Based Pivot (Scout)
@@ -127,7 +155,7 @@ During demo, teammate edits the gist/endpoint to trigger the scout live.
 ### Demo Script (3 minutes)
 1. **[0:00–0:30]** Voice-command: "Hunter, find me leads for our new Postgres hosting service."
 2. **[0:30–1:00]** Show strategy generation: ICP, keywords, competitors appearing in the UI.
-3. **[1:00–1:45]** Show lead list with validation scores. Highlight a self-correction: "Agent found Company X migrated from AWS to GCP — logged a Lesson."
+3. **[1:00–1:45]** Show lead list with classifications (Strike / Monitor / Disregard). Highlight a self-correction: "Agent classified Company X as Disregard — tech stack mismatch — logged a Lesson."
 4. **[1:45–2:15]** Trigger the mock outage. Show the scout detecting it and the agent drafting a pivot email in real time.
 5. **[2:15–2:45]** Show the Neo4j graph: Strategy evolution, Lesson nodes, Evidence chains.
 6. **[2:45–3:00]** Wrap: "No human touched the strategy. The agent learned, pivoted, and improved autonomously."
@@ -143,7 +171,7 @@ backend/
 └── services/
     ├── neo4j_service.py             # Neo4j driver, session helper, cleanup
     ├── tavily_service.py            # fact_check_lead(), research_market()
-    ├── slm_service.py               # generate_strategy(), score_lead(), refine_strategy(), draft_pivot_email()
+    ├── slm_service.py               # generate_strategy(), classify_lead(), refine_strategy(), draft_pivot_email()
     └── modulate_service.py          # transcribe_audio() via Modulate Velma-2 STT
 
 frontend/
@@ -208,7 +236,7 @@ SCOUT_POLL_INTERVAL=10
 
 ### Partner A (Backend & Logic — "The Architect")
 - Neo4j schema setup and self-correction logic
-- Fastino SLM prompts (strategy gen, lead scoring, pivot drafting)
+- Fastino SLM prompts (strategy gen, lead classification, pivot drafting)
 - Tavily fact-check integration
 - Agent loop (strategy → leads → validate → learn → repeat)
 

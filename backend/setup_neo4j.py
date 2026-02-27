@@ -46,6 +46,7 @@ SEED_CYPHER = """
 // ── Strategy v1 (initial) ─────────────────────────────────────────────
 CREATE (s1:Strategy {
   version: 1,
+  product_description: 'Managed Postgres hosting platform that simplifies database operations, reduces cloud costs, and enables multi-cloud deployments for engineering teams.',
   icp: 'B2B SaaS companies with 20-200 engineers running self-managed Postgres on AWS',
   keywords: ['postgres', 'database migration', 'managed hosting', 'aws rds alternative'],
   competitors: ['PlanetScale', 'Neon', 'Supabase', 'AWS RDS'],
@@ -55,6 +56,7 @@ CREATE (s1:Strategy {
 // ── Strategy v2 (evolved after lessons) ───────────────────────────────
 CREATE (s2:Strategy {
   version: 2,
+  product_description: 'Managed Postgres hosting platform that simplifies database operations, reduces cloud costs, and enables multi-cloud deployments for engineering teams.',
   icp: 'Series A-C SaaS companies (50-500 employees) actively migrating off AWS to multi-cloud, using Postgres or compatible DBs',
   keywords: ['postgres', 'multi-cloud', 'database migration', 'cloud-agnostic', 'cost optimization'],
   competitors: ['PlanetScale', 'Neon', 'Supabase', 'CockroachDB', 'Timescale'],
@@ -64,30 +66,31 @@ CREATE (s2:Strategy {
 CREATE (s2)-[:EVOLVED_FROM]->(s1)
 
 // ── Companies (good fits) ─────────────────────────────────────────────
-CREATE (c1:Company  {name: 'GitLab',             domain: 'gitlab.com',          tech_stack: ['Postgres', 'Kubernetes', 'GCP'],            employees: 2000, funding: 'Public',       score: 84})
-CREATE (c2:Company  {name: 'Sentry',             domain: 'sentry.io',           tech_stack: ['Python', 'Postgres', 'Kubernetes', 'AWS'],   employees: 700,  funding: 'Series E',     score: 87})
-CREATE (c3:Company  {name: 'LaunchDarkly',       domain: 'launchdarkly.com',    tech_stack: ['Go', 'Postgres', 'AWS', 'Terraform'],        employees: 650,  funding: 'Series D',     score: 83})
-CREATE (c4:Company  {name: 'Retool',             domain: 'retool.com',          tech_stack: ['TypeScript', 'Postgres', 'AWS'],             employees: 500,  funding: 'Series C',     score: 80})
-CREATE (c5:Company  {name: 'PostHog',            domain: 'posthog.com',         tech_stack: ['TypeScript', 'Postgres', 'Kubernetes'],      employees: 200,  funding: 'Series B',     score: 78})
-CREATE (c6:Company  {name: 'Vercel',             domain: 'vercel.com',          tech_stack: ['TypeScript', 'Postgres', 'Multi-cloud'],      employees: 500,  funding: 'Series D',     score: 74})
+// No classification at seed time — the SLM computes it on-the-fly during validation.
+CREATE (c1:Company  {name: 'GitLab',             domain: 'gitlab.com',          tech_stack: ['Postgres', 'Kubernetes', 'GCP'],            employees: 2000, funding: 'Public'})
+CREATE (c2:Company  {name: 'Sentry',             domain: 'sentry.io',           tech_stack: ['Python', 'Postgres', 'Kubernetes', 'AWS'],   employees: 700,  funding: 'Series E'})
+CREATE (c3:Company  {name: 'LaunchDarkly',       domain: 'launchdarkly.com',    tech_stack: ['Go', 'Postgres', 'AWS', 'Terraform'],        employees: 650,  funding: 'Series D'})
+CREATE (c4:Company  {name: 'Retool',             domain: 'retool.com',          tech_stack: ['TypeScript', 'Postgres', 'AWS'],             employees: 500,  funding: 'Series C'})
+CREATE (c5:Company  {name: 'PostHog',            domain: 'posthog.com',         tech_stack: ['TypeScript', 'Postgres', 'Kubernetes'],      employees: 200,  funding: 'Series B'})
+CREATE (c6:Company  {name: 'Vercel',             domain: 'vercel.com',          tech_stack: ['TypeScript', 'Postgres', 'Multi-cloud'],      employees: 500,  funding: 'Series D'})
 
 // ── Companies (mismatches — drive lessons) ────────────────────────────
-CREATE (c7:Company  {name: 'Plausible Analytics', domain: 'plausible.io',       tech_stack: ['Elixir', 'Postgres', 'DigitalOcean'],       employees: 20,  funding: 'Bootstrapped', score: 25})
-CREATE (c8:Company  {name: 'Oracle',              domain: 'oracle.com',         tech_stack: ['Java', 'Oracle DB', 'On-prem'],              employees: 160000, funding: 'Public',   score: 10})
-CREATE (c9:Company  {name: 'Fathom Analytics',    domain: 'usefathom.com',      tech_stack: ['Go', 'Postgres', 'Single-region'],           employees: 15,  funding: 'Bootstrapped', score: 30})
-CREATE (c10:Company {name: 'MongoDB',             domain: 'mongodb.com',        tech_stack: ['MongoDB', 'Atlas', 'Multi-cloud'],           employees: 6000, funding: 'Public',       score: 20})
+CREATE (c7:Company  {name: 'Plausible Analytics', domain: 'plausible.io',       tech_stack: ['Elixir', 'Postgres', 'DigitalOcean'],       employees: 20,  funding: 'Bootstrapped'})
+CREATE (c8:Company  {name: 'Oracle',              domain: 'oracle.com',         tech_stack: ['Java', 'Oracle DB', 'On-prem'],              employees: 160000, funding: 'Public'})
+CREATE (c9:Company  {name: 'Fathom Analytics',    domain: 'usefathom.com',      tech_stack: ['Go', 'Postgres', 'Single-region'],           employees: 15,  funding: 'Bootstrapped'})
+CREATE (c10:Company {name: 'MongoDB',             domain: 'mongodb.com',        tech_stack: ['MongoDB', 'Atlas', 'Multi-cloud'],           employees: 6000, funding: 'Public'})
 
 // ── More companies (expand dataset) ────────────────────────────────────
-CREATE (c11:Company {name: 'Plaid',               domain: 'plaid.com',          tech_stack: ['Go', 'Postgres', 'AWS'],                      employees: 1000, funding: 'Series D',     score: 77})
-CREATE (c12:Company {name: 'Twilio Segment',      domain: 'segment.com',        tech_stack: ['TypeScript', 'Postgres', 'AWS'],              employees: 600,  funding: 'Acquired',     score: 72})
-CREATE (c13:Company {name: 'Fivetran',            domain: 'fivetran.com',       tech_stack: ['Java', 'Postgres', 'GCP', 'Kubernetes'],       employees: 1200, funding: 'Series D',     score: 79})
-CREATE (c14:Company {name: 'Databricks',          domain: 'databricks.com',     tech_stack: ['Spark', 'Kubernetes', 'AWS', 'Azure', 'GCP'], employees: 6000, funding: 'Late-stage',   score: 58})
-CREATE (c15:Company {name: 'Stripe',              domain: 'stripe.com',         tech_stack: ['Ruby', 'Java', 'Postgres', 'AWS'],             employees: 8000, funding: 'Private',      score: 65})
-CREATE (c16:Company {name: 'Cloudflare',          domain: 'cloudflare.com',     tech_stack: ['Rust', 'Go', 'Postgres', 'Multi-cloud'],       employees: 4000, funding: 'Public',       score: 62})
-CREATE (c17:Company {name: 'Airtable',            domain: 'airtable.com',       tech_stack: ['TypeScript', 'Postgres', 'AWS'],              employees: 1200, funding: 'Series F',     score: 68})
-CREATE (c18:Company {name: 'Notion',              domain: 'notion.so',          tech_stack: ['TypeScript', 'Postgres', 'AWS'],              employees: 800,  funding: 'Series C',     score: 70})
-CREATE (c19:Company {name: 'Mux',                 domain: 'mux.com',            tech_stack: ['Go', 'Postgres', 'AWS'],                      employees: 400,  funding: 'Series D',     score: 73})
-CREATE (c20:Company {name: 'Render',              domain: 'render.com',         tech_stack: ['Go', 'Postgres', 'AWS'],                      employees: 150,  funding: 'Series B',     score: 76})
+CREATE (c11:Company {name: 'Plaid',               domain: 'plaid.com',          tech_stack: ['Go', 'Postgres', 'AWS'],                      employees: 1000, funding: 'Series D'})
+CREATE (c12:Company {name: 'Twilio Segment',      domain: 'segment.com',        tech_stack: ['TypeScript', 'Postgres', 'AWS'],              employees: 600,  funding: 'Acquired'})
+CREATE (c13:Company {name: 'Fivetran',            domain: 'fivetran.com',       tech_stack: ['Java', 'Postgres', 'GCP', 'Kubernetes'],       employees: 1200, funding: 'Series D'})
+CREATE (c14:Company {name: 'Databricks',          domain: 'databricks.com',     tech_stack: ['Spark', 'Kubernetes', 'AWS', 'Azure', 'GCP'], employees: 6000, funding: 'Late-stage'})
+CREATE (c15:Company {name: 'Stripe',              domain: 'stripe.com',         tech_stack: ['Ruby', 'Java', 'Postgres', 'AWS'],             employees: 8000, funding: 'Private'})
+CREATE (c16:Company {name: 'Cloudflare',          domain: 'cloudflare.com',     tech_stack: ['Rust', 'Go', 'Postgres', 'Multi-cloud'],       employees: 4000, funding: 'Public'})
+CREATE (c17:Company {name: 'Airtable',            domain: 'airtable.com',       tech_stack: ['TypeScript', 'Postgres', 'AWS'],              employees: 1200, funding: 'Series F'})
+CREATE (c18:Company {name: 'Notion',              domain: 'notion.so',          tech_stack: ['TypeScript', 'Postgres', 'AWS'],              employees: 800,  funding: 'Series C'})
+CREATE (c19:Company {name: 'Mux',                 domain: 'mux.com',            tech_stack: ['Go', 'Postgres', 'AWS'],                      employees: 400,  funding: 'Series D'})
+CREATE (c20:Company {name: 'Render',              domain: 'render.com',         tech_stack: ['Go', 'Postgres', 'AWS'],                      employees: 150,  funding: 'Series B'})
 
 // ── Strategy targeting ────────────────────────────────────────────────
 CREATE (s1)-[:TARGETS]->(c1)

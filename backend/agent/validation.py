@@ -3,9 +3,9 @@ Lead validation loop — the agent's self-correction engine.
 
 For each lead targeted by the current strategy:
   1. Tavily fact-checks the claimed tech stack
-  2. SLM scores the lead (0-100) and detects mismatches
-  3. Mismatches produce Lesson + Evidence nodes in Neo4j
-  4. If >60% of leads fail, triggers a strategy pivot
+  2. Fine-tuned SLM classifies the lead (Strike / Monitor / Disregard)
+  3. Disregard leads produce Lesson + Evidence nodes in Neo4j
+  4. If >60% of leads are Disregard, triggers a strategy pivot
 """
 
 import uuid
@@ -13,10 +13,9 @@ from datetime import datetime, timezone
 
 from services.neo4j_service import get_session
 from services.tavily_service import fact_check_lead
-from services.slm_service import score_lead
+from services.slm_service import classify_lead
 
 FAILURE_THRESHOLD = 0.6
-SCORE_PASS_THRESHOLD = 50
 
 
 def _get_current_strategy() -> dict | None:
@@ -43,13 +42,13 @@ def _get_leads_for_strategy(version: int) -> list[dict]:
         return [dict(r["company"]) for r in result]
 
 
-def _update_lead_score(domain: str, score: int):
-    """Update the score field on a Company node."""
+def _update_lead_classification(domain: str, classification: str):
+    """Set the classification label on a Company node."""
     with get_session() as session:
         session.run(
-            "MATCH (c:Company {domain: $domain}) SET c.score = $score",
+            "MATCH (c:Company {domain: $domain}) SET c.classification = $classification",
             domain=domain,
-            score=score,
+            classification=classification,
         )
 
 
@@ -116,54 +115,101 @@ def _store_pivot_lesson(details: str):
         )
 
 
-async def validate_single_lead(company: dict, icp: str) -> dict:
+# ---------------------------------------------------------------------------
+# Helpers: build the text fields the fine-tuned classifier expects
+# ---------------------------------------------------------------------------
+
+def _build_trigger_events(evidence: dict) -> str:
+    """Summarise Tavily fact-check results into a trigger-events string."""
+    if evidence.get("mismatch"):
+        return f"Tech stack mismatch detected: {evidence['mismatch_details']}"
+
+    sources = evidence.get("sources", [])
+    if sources:
+        snippets = [s.get("summary", "")[:120] for s in sources[:3] if s.get("summary")]
+        if snippets:
+            return "Recent web evidence: " + "; ".join(snippets)
+
+    return "No recent trigger events detected from web research."
+
+
+def _build_company_context(company: dict) -> str:
+    """Format Company node data into the context string the model expects."""
+    name = company.get("name", "Unknown")
+    employees = company.get("employees", "unknown")
+    funding = company.get("funding", "unknown")
+    tech = company.get("tech_stack", [])
+    tech_str = ", ".join(tech) if tech else "unknown stack"
+    return f"{name} ({funding}, ~{employees} employees) using {tech_str}."
+
+
+def _derive_mismatch_type(company: dict, evidence: dict) -> str:
+    """Pick a specific lesson type from Tavily evidence + company metadata."""
+    if evidence.get("mismatch"):
+        return "TechStackMismatch"
+    employees = company.get("employees", 0)
+    if isinstance(employees, int) and employees < 25:
+        return "CompanyTooSmall"
+    return "Disregard"
+
+
+# ---------------------------------------------------------------------------
+# Core validation
+# ---------------------------------------------------------------------------
+
+async def validate_single_lead(
+    company: dict,
+    product_description: str,
+) -> dict:
     """
-    Validate one lead: fact-check → score → store results.
+    Validate one lead: fact-check → classify → store results.
 
     Returns:
         {
             "company": str,
             "domain": str,
-            "old_score": int,
-            "new_score": int,
-            "passed": bool,
+            "classification": "Strike" | "Monitor" | "Disregard",
+            "previous_classification": str | None,
             "mismatch_type": str | None,
-            "reasoning": str,
+            "mismatch_details": str | None,
             "evidence_count": int,
         }
     """
     name = company["name"]
     domain = company["domain"]
     tech_stack = company.get("tech_stack", [])
-    old_score = company.get("score", 0)
+    old_classification = company.get("classification")
 
     evidence = await fact_check_lead(name, tech_stack)
 
-    scoring = await score_lead(company, evidence, icp)
-    new_score = scoring.get("score", 0)
-    mismatch_type = scoring.get("mismatch_type")
-    mismatch_details = scoring.get("mismatch_details")
-    reasoning = scoring.get("reasoning", "")
+    trigger_events = _build_trigger_events(evidence)
+    company_context = _build_company_context(company)
 
-    _update_lead_score(domain, new_score)
+    result = await classify_lead(product_description, trigger_events, company_context)
+    classification = result["classification"]
+
+    _update_lead_classification(domain, classification)
 
     for source in evidence.get("sources", []):
         if source.get("url"):
             _store_evidence(domain, source["url"], source.get("summary", ""))
 
-    if mismatch_type and mismatch_details:
+    mismatch_type = None
+    mismatch_details = None
+    if classification == "Disregard":
+        mismatch_type = _derive_mismatch_type(company, evidence)
+        mismatch_details = evidence.get("mismatch_details") or (
+            f"{name} classified as Disregard by the SLM."
+        )
         _store_lesson(domain, mismatch_type, mismatch_details)
-
-    passed = new_score >= SCORE_PASS_THRESHOLD
 
     return {
         "company": name,
         "domain": domain,
-        "old_score": old_score,
-        "new_score": new_score,
-        "passed": passed,
+        "classification": classification,
+        "previous_classification": old_classification,
         "mismatch_type": mismatch_type,
-        "reasoning": reasoning,
+        "mismatch_details": mismatch_details,
         "evidence_count": len(evidence.get("sources", [])),
     }
 
@@ -175,11 +221,12 @@ async def run_validation_loop(strategy_version: int | None = None) -> dict:
     Returns:
         {
             "strategy_version": int,
-            "icp": str,
+            "product_description": str,
             "total_leads": int,
-            "passed": int,
-            "failed": int,
-            "failure_rate": float,
+            "strike": int,
+            "monitor": int,
+            "disregard": int,
+            "disregard_rate": float,
             "pivot_triggered": bool,
             "results": [...]
         }
@@ -199,7 +246,7 @@ async def run_validation_loop(strategy_version: int | None = None) -> dict:
         return {"error": "No strategy found"}
 
     version = strategy["version"]
-    icp = strategy["icp"]
+    product_description = strategy.get("product_description", "")
     leads = _get_leads_for_strategy(version)
 
     if not leads:
@@ -207,28 +254,31 @@ async def run_validation_loop(strategy_version: int | None = None) -> dict:
 
     results = []
     for company in leads:
-        result = await validate_single_lead(company, icp)
+        result = await validate_single_lead(company, product_description)
         results.append(result)
 
-    passed = sum(1 for r in results if r["passed"])
-    failed = len(results) - passed
-    failure_rate = failed / len(results) if results else 0
+    counts = {"Strike": 0, "Monitor": 0, "Disregard": 0}
+    for r in results:
+        counts[r["classification"]] = counts.get(r["classification"], 0) + 1
 
-    pivot_triggered = failure_rate > FAILURE_THRESHOLD
+    disregard_rate = counts["Disregard"] / len(results) if results else 0
+
+    pivot_triggered = disregard_rate > FAILURE_THRESHOLD
     if pivot_triggered:
-        failed_names = [r["company"] for r in results if not r["passed"]]
+        disregarded = [r["company"] for r in results if r["classification"] == "Disregard"]
         _store_pivot_lesson(
-            f"Validation failure rate {failure_rate:.0%} exceeds {FAILURE_THRESHOLD:.0%} threshold. "
-            f"Failed leads: {', '.join(failed_names)}. Strategy needs refinement."
+            f"Disregard rate {disregard_rate:.0%} exceeds {FAILURE_THRESHOLD:.0%} threshold. "
+            f"Disregarded leads: {', '.join(disregarded)}. Strategy needs refinement."
         )
 
     return {
         "strategy_version": version,
-        "icp": icp,
+        "product_description": product_description,
         "total_leads": len(results),
-        "passed": passed,
-        "failed": failed,
-        "failure_rate": round(failure_rate, 2),
+        "strike": counts["Strike"],
+        "monitor": counts["Monitor"],
+        "disregard": counts["Disregard"],
+        "disregard_rate": round(disregard_rate, 2),
         "pivot_triggered": pivot_triggered,
         "results": results,
     }

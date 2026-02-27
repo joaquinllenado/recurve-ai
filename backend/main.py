@@ -132,25 +132,35 @@ def get_strategy():
 
 @app.get("/api/leads")
 def get_leads(strategy_version: int | None = None):
+    """Return leads ordered by classification: Strike → Monitor → Disregard → unclassified."""
+    _ORDER = """
+        ORDER BY
+          CASE c.classification
+            WHEN 'Strike'    THEN 0
+            WHEN 'Monitor'   THEN 1
+            WHEN 'Disregard' THEN 2
+            ELSE 3
+          END, c.name
+    """
     try:
         with get_session() as session:
             if strategy_version is not None:
                 result = session.run(
-                    """
-                    MATCH (s:Strategy {version: $version})-[:TARGETS]->(c:Company)
-                    RETURN c {.*} AS company
-                    ORDER BY c.score DESC
+                    f"""
+                    MATCH (s:Strategy {{version: $version}})-[:TARGETS]->(c:Company)
+                    RETURN c {{.*}} AS company
+                    {_ORDER}
                     """,
                     version=strategy_version,
                 )
             else:
                 result = session.run(
-                    """
+                    f"""
                     MATCH (s:Strategy)-[:TARGETS]->(c:Company)
                     WITH max(s.version) AS latest
-                    MATCH (s:Strategy {version: latest})-[:TARGETS]->(c:Company)
-                    RETURN c {.*} AS company
-                    ORDER BY c.score DESC
+                    MATCH (s:Strategy {{version: latest}})-[:TARGETS]->(c:Company)
+                    RETURN c {{.*}} AS company
+                    {_ORDER}
                     """
                 )
             leads = [dict(r["company"]) for r in result]

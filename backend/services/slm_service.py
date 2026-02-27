@@ -3,7 +3,7 @@ Fastino Pioneer SLM service for The Recursive Hunter.
 
 Functions:
   generate_strategy  — product + market research → ICP JSON
-  score_lead         — company data + evidence → score 0-100 + reasoning
+  classify_lead      — product desc + trigger events + company context → Strike/Monitor/Disregard
   refine_strategy    — previous strategy + lessons → evolved ICP JSON
   draft_pivot_email  — company + trigger event → outreach email
 """
@@ -140,48 +140,66 @@ async def refine_strategy(
 
 
 # ---------------------------------------------------------------------------
-# 2. Lead scoring
+# 2. Lead classification  (Strike / Monitor / Disregard)
 # ---------------------------------------------------------------------------
 
-_SCORE_SYSTEM = """\
-You are a lead qualification analyst. Given a company profile, web evidence about \
-them, and the current Ideal Customer Profile, score how well this lead fits.
+VALID_CLASSIFICATIONS = {"Strike", "Monitor", "Disregard"}
 
-Respond ONLY with valid JSON:
-{
-  "score": <integer 0-100>,
-  "reasoning": "<2-3 sentences explaining the score>",
-  "mismatch_type": "<null or one of: TechStackMismatch, CompanyTooSmall, ContractLockIn, SegmentPivot>",
-  "mismatch_details": "<null or explanation of why this is a bad fit>"
-}
-No explanation outside the JSON."""
+_CLASSIFY_SYSTEM = """\
+You are a lead qualification classifier for B2B sales.
+
+Given a product/service description, recent trigger events, and company context, \
+classify the lead into exactly one category:
+
+- Strike: Strong fit with an urgent, time-bound trigger — pursue immediately.
+- Monitor: Potential fit but no urgent trigger — watch for changes.
+- Disregard: Poor fit — wrong industry, too small, or fundamentally misaligned.
+
+Respond with ONLY the classification label (Strike, Monitor, or Disregard). \
+No explanation, no punctuation — just the single word."""
 
 
-async def score_lead(
-    company: dict,
-    evidence: dict,
-    icp: str,
+def build_classification_prompt(
+    product_description: str,
+    trigger_events: str,
+    company_context: str,
+) -> str:
+    """Format lead data into the text schema the fine-tuned model expects."""
+    return (
+        f"Product/Service Description: {product_description}\n"
+        f"Trigger Events: {trigger_events}\n"
+        f"Company Context: {company_context}"
+    )
+
+
+async def classify_lead(
+    product_description: str,
+    trigger_events: str,
+    company_context: str,
 ) -> dict:
     """
-    Score a lead 0-100 based on company data, web evidence, and current ICP.
+    Classify a lead as Strike, Monitor, or Disregard.
 
-    company:  {"name", "domain", "tech_stack", "employees", "funding"}
-    evidence: output from fact_check_lead()
-    icp:      the current ICP string from the Strategy node
+    The input text matches the fine-tuned model's training format
+    (see pioneer_eval_set_60.jsonl).
 
-    Returns: {"score": int, "reasoning": str, "mismatch_type": str|None, "mismatch_details": str|None}
+    Returns: {"classification": "Strike"|"Monitor"|"Disregard"}
     """
-    user_prompt = (
-        f"ICP: {icp}\n\n"
-        f"Company: {json.dumps(company, indent=2)}\n\n"
-        f"Web evidence (from Tavily):\n"
-        f"  Actual tech found: {evidence.get('actual_tech', [])}\n"
-        f"  Mismatch detected: {evidence.get('mismatch', False)}\n"
-        f"  Details: {evidence.get('mismatch_details', 'None')}\n"
-        f"  Sources: {json.dumps(evidence.get('sources', []), indent=2)}"
+    user_prompt = build_classification_prompt(
+        product_description, trigger_events, company_context,
     )
-    raw = _call_pioneer(_SCORE_SYSTEM, user_prompt, max_tokens=500)
-    return _parse_json_from_response(raw)
+    raw = _call_pioneer(_CLASSIFY_SYSTEM, user_prompt, max_tokens=20)
+    label = raw.strip().split()[0].strip(".,;:\"'")
+
+    if label not in VALID_CLASSIFICATIONS:
+        for valid in VALID_CLASSIFICATIONS:
+            if valid.lower() in raw.lower():
+                label = valid
+                break
+        else:
+            label = "Monitor"
+
+    return {"classification": label}
 
 
 # ---------------------------------------------------------------------------
