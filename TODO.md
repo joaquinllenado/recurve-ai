@@ -10,7 +10,7 @@
 - [ ] Set up Neo4j Aura free instance — get connection URI, user, password
 
 ### Partner B (Infra & UX)
-- [ ] Deploy the FastAPI scaffold to Render (web service live with `/api/hello`)
+- [x] Deploy the FastAPI scaffold to Render (web service live with `/api/hello`)
 - [ ] Provision Render Postgres — get `DATABASE_URL`
 - [ ] Add all env vars to Render dashboard (Neo4j, Tavily, Fastino, Modulate, DB, Scout)
 - [ ] Create the mock status page (GitHub Gist or Render static site)
