@@ -149,7 +149,7 @@ Runs on http://localhost:5173 — API calls are proxied to the backend.
 
 ```
 NEO4J_URI=neo4j+s://<your-aura-instance>.neo4j.io
-NEO4J_USER=neo4j
+NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=<password>
 TAVILY_API_KEY=<key>
 FASTINO_API_KEY=<key>
