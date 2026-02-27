@@ -11,7 +11,7 @@
 
 ### Partner B (Infra & UX)
 - [x] Deploy the FastAPI scaffold to Render (web service live with `/api/hello`)
-- [ ] Provision Render Postgres — get `DATABASE_URL`
+- [x] Provision Render Postgres — get `DATABASE_URL`
 - [ ] Add all env vars to Render dashboard (Neo4j, Tavily, Fastino, Modulate, DB, Scout)
 - [ ] Create the mock status page (GitHub Gist or Render static site)
   - Content: `{"status": "operational", "competitor": "DigitalOcean"}`
