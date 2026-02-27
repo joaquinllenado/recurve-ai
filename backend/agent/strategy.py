@@ -41,8 +41,9 @@ def _store_strategy(
     prev_version: int | None,
 ) -> dict:
     """
-    Create a Strategy node in Neo4j. If prev_version is set, also create
-    an EVOLVED_FROM relationship to the previous strategy.
+    Create a Strategy node in Neo4j, link it to all Company nodes via
+    TARGETS, and optionally create an EVOLVED_FROM edge to the previous
+    strategy.
     """
     with get_session() as session:
         result = session.run(
@@ -65,6 +66,15 @@ def _store_strategy(
             created_at=datetime.now(timezone.utc).isoformat(),
         )
         stored = result.single()["strategy"]
+
+        session.run(
+            """
+            MATCH (s:Strategy {version: $version})
+            MATCH (c:Company)
+            MERGE (s)-[:TARGETS]->(c)
+            """,
+            version=version,
+        )
 
         if prev_version is not None:
             session.run(

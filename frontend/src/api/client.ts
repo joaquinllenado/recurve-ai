@@ -64,8 +64,11 @@ export async function postValidate(strategyVersion?: number) {
   const qs = strategyVersion != null ? `?strategy_version=${strategyVersion}` : "";
   return fetchJson<{
     strategy_version: number;
-    passed: number;
-    failed: number;
+    strike: number;
+    monitor: number;
+    disregard: number;
+    disregard_rate: number;
+    pivot_triggered: boolean;
     results: unknown[];
   }>(`/api/validate${qs}`, { method: "POST" });
 }

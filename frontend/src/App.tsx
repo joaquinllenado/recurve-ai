@@ -15,6 +15,7 @@ const REFRESH_EVENT_TYPES = [
   "pivot_email_drafted",
   "mock_trigger_response",
   "graph_reset",
+  "validation_complete",
 ];
 
 function App() {

@@ -80,6 +80,26 @@ async def transcribe(file: UploadFile = File(...)):
 @app.post("/api/product")
 async def ingest_product(payload: ProductInput):
     result = await run_strategy_generation(payload.description)
+
+    version = result.get("version")
+    if version is not None:
+        await feed_manager.broadcast(
+            "validation_started",
+            {"strategy_version": version, "status": "Classifying leads..."},
+        )
+        validation = await run_validation_loop(version)
+        result["validation"] = validation
+        await feed_manager.broadcast(
+            "validation_complete",
+            {
+                "strategy_version": version,
+                "strike": validation.get("strike", 0),
+                "monitor": validation.get("monitor", 0),
+                "disregard": validation.get("disregard", 0),
+                "status": "Lead classification complete",
+            },
+        )
+
     return result
 
 
