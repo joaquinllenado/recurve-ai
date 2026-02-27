@@ -5,7 +5,6 @@ import { LeadsTable } from "./components/LeadsTable";
 import { StrategyPanel } from "./components/StrategyPanel";
 import { GraphVisualization } from "./components/GraphVisualization";
 import { StrategyTimeline } from "./components/StrategyTimeline";
-import { MockTriggerButton } from "./components/MockTriggerButton";
 import { ResetButton } from "./components/ResetButton";
 import { useActivityFeed } from "./hooks/useActivityFeed";
 
@@ -13,7 +12,7 @@ const REFRESH_EVENT_TYPES = [
   "strategy_stored",
   "market_research_done",
   "pivot_email_drafted",
-  "mock_trigger_response",
+  "outage_reprioritized",
   "graph_reset",
   "validation_complete",
 ];
@@ -55,7 +54,6 @@ function App() {
                 {connected ? "Connected" : "Offline"}
               </div>
               <ResetButton onReset={bumpRefresh} />
-              <MockTriggerButton />
             </div>
           </div>
           <ProductInput />

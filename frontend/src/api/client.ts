@@ -73,13 +73,14 @@ export async function postValidate(strategyVersion?: number) {
   }>(`/api/validate${qs}`, { method: "POST" });
 }
 
-export async function postMockTrigger(payload: {
-  status?: string;
-  competitor?: string;
-}) {
-  return fetchJson<unknown>("/api/mock-trigger", {
+export async function postSimulateOutage(competitor: string) {
+  return fetchJson<{
+    competitor: string;
+    promoted_count: number;
+    promoted: { name: string; domain: string }[];
+  }>("/api/simulate-outage", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ competitor }),
   });
 }
 

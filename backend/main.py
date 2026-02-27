@@ -16,7 +16,6 @@ from services.feed_manager import feed_manager
 from services.neo4j_service import get_session
 from agent.strategy import run_strategy_generation
 from agent.validation import run_validation_loop
-from agent.pivot import run_pivot_drafting
 from workers.scout import run_scout_loop
 
 
@@ -109,20 +108,57 @@ async def validate_leads(strategy_version: int | None = None):
     return result
 
 
-class TriggerInput(BaseModel):
-    status: str = "critical_outage"
-    competitor: str = "DigitalOcean"
+ALLOWED_OUTAGE_COMPETITORS = {"DigitalOcean", "Supabase", "AWS"}
 
 
-@app.post("/api/mock-trigger")
-async def mock_trigger(payload: TriggerInput):
-    result = await run_pivot_drafting(payload.model_dump())
-    if "error" not in result:
+class OutageInput(BaseModel):
+    competitor: str
+
+    @field_validator("competitor")
+    @classmethod
+    def must_be_allowed(cls, v: str) -> str:
+        if v not in ALLOWED_OUTAGE_COMPETITORS:
+            raise ValueError(f"competitor must be one of {ALLOWED_OUTAGE_COMPETITORS}")
+        return v
+
+
+@app.post("/api/simulate-outage")
+async def simulate_outage(payload: OutageInput):
+    """
+    Promote every lead whose tech_stack mentions the competitor to 'Strike'
+    classification. Pure Neo4j update — no SLM call.
+    """
+    competitor = payload.competitor
+    try:
+        with get_session() as session:
+            result = session.run(
+                """
+                MATCH (s:Strategy)-[:TARGETS]->(c:Company)
+                WITH max(s.version) AS latest
+                MATCH (s:Strategy {version: latest})-[:TARGETS]->(c:Company)
+                WHERE any(t IN c.tech_stack WHERE toLower(t) CONTAINS toLower($comp))
+                SET c.classification = 'Strike'
+                RETURN c.name AS name, c.domain AS domain
+                """,
+                comp=competitor,
+            )
+            promoted = [{"name": r["name"], "domain": r["domain"]} for r in result]
+
         await feed_manager.broadcast(
-            "mock_trigger_response",
-            {"trigger": payload.model_dump(), "result": result},
+            "outage_reprioritized",
+            {
+                "competitor": competitor,
+                "promoted_count": len(promoted),
+                "promoted": promoted,
+            },
         )
-    return result
+        return {
+            "competitor": competitor,
+            "promoted_count": len(promoted),
+            "promoted": promoted,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Neo4j unavailable: {e}") from e
 
 
 def _serialize_value(v):

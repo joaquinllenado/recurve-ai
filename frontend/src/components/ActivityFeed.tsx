@@ -9,7 +9,7 @@ const EVENT_CONFIG: Record<string, { label: string; icon: string }> = {
   agent_error: { label: "Error", icon: "error" },
   scout_status_change: { label: "Scout alert", icon: "alert" },
   pivot_email_drafted: { label: "Pivot drafted", icon: "mail" },
-  mock_trigger_response: { label: "Trigger fired", icon: "zap" },
+  outage_reprioritized: { label: "Outage reprioritized", icon: "zap" },
 };
 
 function StatusDot({ icon }: { icon: string }) {
