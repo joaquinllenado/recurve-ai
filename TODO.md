@@ -43,7 +43,7 @@
 ## Phase 3: The Agent Loop (1:30–3:30)
 
 ### Partner A
-- [ ] Download fine-tuned Fastino model / configure API client (`backend/services/slm_service.py`)
+- [X] Configure Fastino API client (`backend/services/slm_service.py`)
 - [ ] Implement strategy generation flow:
   1. Receive product description
   2. Call Tavily `research_market()`
