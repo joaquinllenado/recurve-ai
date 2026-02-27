@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ProductInput } from "./components/ProductInput";
 import { ActivityFeed } from "./components/ActivityFeed";
 import { LeadsTable } from "./components/LeadsTable";
@@ -6,6 +6,7 @@ import { StrategyPanel } from "./components/StrategyPanel";
 import { GraphVisualization } from "./components/GraphVisualization";
 import { StrategyTimeline } from "./components/StrategyTimeline";
 import { MockTriggerButton } from "./components/MockTriggerButton";
+import { ResetButton } from "./components/ResetButton";
 import { useActivityFeed } from "./hooks/useActivityFeed";
 
 const REFRESH_EVENT_TYPES = [
@@ -13,11 +14,16 @@ const REFRESH_EVENT_TYPES = [
   "market_research_done",
   "pivot_email_drafted",
   "mock_trigger_response",
+  "graph_reset",
 ];
 
 function App() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { events, connected } = useActivityFeed();
+
+  const bumpRefresh = useCallback(() => {
+    setRefreshTrigger((t) => t + 1);
+  }, []);
 
   useEffect(() => {
     if (events.length === 0) return;
@@ -47,6 +53,7 @@ function App() {
                 <span className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-success" : "bg-text-tertiary"}`} />
                 {connected ? "Connected" : "Offline"}
               </div>
+              <ResetButton onReset={bumpRefresh} />
               <MockTriggerButton />
             </div>
           </div>
