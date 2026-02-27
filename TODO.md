@@ -44,23 +44,23 @@
 
 ### Partner A
 - [X] Configure Fastino API client (`backend/services/slm_service.py`)
-- [ ] Implement strategy generation flow:
+- [X] Implement strategy generation flow:
   1. Receive product description
   2. Call Tavily `research_market()`
   3. Feed product + market data to Fastino SLM
   4. Parse ICP JSON output
   5. Store `Strategy` node in Neo4j
-- [ ] Implement lead validation loop:
+- [X] Implement lead validation loop:
   1. For each lead, call `fact_check_lead()`
   2. Compare CRM data vs Tavily results via SLM
   3. Score the lead (0–100)
   4. If mismatch → create `Lesson` node, link to `Company`
   5. If >60% leads fail → trigger strategy pivot
-- [ ] Implement self-correction logic:
+- [X] Implement self-correction logic:
   - Before generating new strategy, query Neo4j for all `Lesson` nodes
   - Inject lessons into SLM prompt as context
   - Create new `Strategy` node with `EVOLVED_FROM` edge to previous
-- [ ] Implement pivot email drafting (SLM prompt for outage-context outreach)
+- [X] Implement pivot email drafting (SLM prompt for outage-context outreach)
 
 ### Partner B
 - [ ] Implement Yutori Scout background worker (`backend/workers/scout.py`)

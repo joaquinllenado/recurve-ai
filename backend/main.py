@@ -8,6 +8,8 @@ from pydantic import BaseModel
 
 from services.modulate_service import transcribe_audio
 from agent.strategy import run_strategy_generation
+from agent.validation import run_validation_loop
+from agent.pivot import run_pivot_drafting
 
 app = FastAPI()
 
@@ -38,4 +40,21 @@ async def transcribe(file: UploadFile = File(...)):
 @app.post("/api/product")
 async def ingest_product(payload: ProductInput):
     result = await run_strategy_generation(payload.description)
+    return result
+
+
+@app.post("/api/validate")
+async def validate_leads(strategy_version: int | None = None):
+    result = await run_validation_loop(strategy_version)
+    return result
+
+
+class TriggerInput(BaseModel):
+    status: str = "critical_outage"
+    competitor: str = "DigitalOcean"
+
+
+@app.post("/api/mock-trigger")
+async def mock_trigger(payload: TriggerInput):
+    result = await run_pivot_drafting(payload.model_dump())
     return result
