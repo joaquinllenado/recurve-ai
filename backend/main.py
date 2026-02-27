@@ -2,11 +2,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from services.modulate_service import transcribe_audio
+from services.feed_manager import feed_manager
 from agent.strategy import run_strategy_generation
 
 app = FastAPI()
@@ -39,3 +40,13 @@ async def transcribe(file: UploadFile = File(...)):
 async def ingest_product(payload: ProductInput):
     result = await run_strategy_generation(payload.description)
     return result
+
+
+@app.websocket("/api/ws/feed")
+async def ws_feed(websocket: WebSocket):
+    await feed_manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        feed_manager.disconnect(websocket)
