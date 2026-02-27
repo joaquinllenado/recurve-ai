@@ -28,7 +28,7 @@
 - [X] Write Tavily fact-check function (`backend/services/tavily_service.py`)
   - `async def fact_check_lead(company_name, claimed_tech_stack) -> dict`
   - Returns: `{ "actual_tech": [...], "sources": [...], "mismatch": bool }`
-- [ ] Write Tavily competitor research function
+- [X] Write Tavily competitor research function
   - `async def research_market(product_description) -> dict`
   - Returns: `{ "competitors": [...], "pricing_insights": [...], "complaints": [...] }`
 
