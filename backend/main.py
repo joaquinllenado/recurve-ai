@@ -78,28 +78,36 @@ async def transcribe(file: UploadFile = File(...)):
 
 @app.post("/api/product")
 async def ingest_product(payload: ProductInput):
-    result = await run_strategy_generation(payload.description)
+    asyncio.create_task(_run_product_pipeline(payload.description))
+    return {"status": "started"}
 
-    version = result.get("version")
-    if version is not None:
-        await feed_manager.broadcast(
-            "validation_started",
-            {"strategy_version": version, "status": "Classifying leads..."},
-        )
-        validation = await run_validation_loop(version)
-        result["validation"] = validation
-        await feed_manager.broadcast(
-            "validation_complete",
-            {
-                "strategy_version": version,
-                "strike": validation.get("strike", 0),
-                "monitor": validation.get("monitor", 0),
-                "disregard": validation.get("disregard", 0),
-                "status": "Lead classification complete",
-            },
-        )
 
-    return result
+async def _run_product_pipeline(description: str):
+    try:
+        result = await run_strategy_generation(description)
+
+        version = result.get("version")
+        if version is not None:
+            await feed_manager.broadcast(
+                "validation_started",
+                {"strategy_version": version, "status": "Classifying leads..."},
+            )
+            validation = await run_validation_loop(version)
+            await feed_manager.broadcast(
+                "validation_complete",
+                {
+                    "strategy_version": version,
+                    "strike": validation.get("strike", 0),
+                    "monitor": validation.get("monitor", 0),
+                    "disregard": validation.get("disregard", 0),
+                    "status": "Lead classification complete",
+                },
+            )
+    except Exception as e:
+        await feed_manager.broadcast(
+            "agent_error",
+            {"error": str(e), "status": "Pipeline failed"},
+        )
 
 
 @app.post("/api/validate")
@@ -379,5 +387,5 @@ async def ws_feed(websocket: WebSocket):
     try:
         while True:
             await websocket.receive_text()
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, Exception):
         feed_manager.disconnect(websocket)
