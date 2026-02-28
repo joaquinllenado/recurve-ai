@@ -6,6 +6,7 @@ Automatically checks for existing Lessons and uses refine_strategy()
 instead of generate_strategy() when past corrections exist.
 """
 
+import asyncio
 from datetime import datetime, timezone
 
 from services.feed_manager import feed_manager
@@ -124,8 +125,8 @@ async def run_strategy_generation(product_description: str) -> dict:
             },
         )
 
-        lessons = _get_lessons()
-        prev_version = _get_latest_strategy_version()
+        lessons = await asyncio.to_thread(_get_lessons)
+        prev_version = await asyncio.to_thread(_get_latest_strategy_version)
         new_version = prev_version + 1
 
         if lessons:
@@ -146,7 +147,9 @@ async def run_strategy_generation(product_description: str) -> dict:
             {"icp_preview": icp_preview},
         )
 
-        _store_strategy(strategy_data, product_description, new_version, evolved_from)
+        await asyncio.to_thread(
+            _store_strategy, strategy_data, product_description, new_version, evolved_from
+        )
 
         await feed_manager.broadcast(
             "strategy_stored",

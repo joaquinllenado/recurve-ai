@@ -16,11 +16,7 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 export async function postProduct(description: string) {
-  return fetchJson<{
-    version: number;
-    strategy: { icp: string; keywords: string[]; competitors: string[] };
-    market_research?: unknown;
-  }>("/api/product", {
+  return fetchJson<{ status: string }>("/api/product", {
     method: "POST",
     body: JSON.stringify({ description }),
   });

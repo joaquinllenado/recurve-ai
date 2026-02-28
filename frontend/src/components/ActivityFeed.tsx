@@ -6,10 +6,15 @@ const EVENT_CONFIG: Record<string, { label: string; icon: string }> = {
   market_research_done: { label: "Research complete", icon: "check" },
   strategy_generated: { label: "Strategy generated", icon: "lightning" },
   strategy_stored: { label: "Strategy stored", icon: "save" },
+  validation_started: { label: "Validation started", icon: "search" },
+  lead_validating: { label: "Validating lead", icon: "search" },
+  lead_validated: { label: "Lead classified", icon: "check" },
+  validation_complete: { label: "Validation complete", icon: "check" },
   agent_error: { label: "Error", icon: "error" },
   scout_status_change: { label: "Scout alert", icon: "alert" },
   pivot_email_drafted: { label: "Pivot drafted", icon: "mail" },
   outage_reprioritized: { label: "Outage reprioritized", icon: "zap" },
+  graph_reset: { label: "Graph reset", icon: "alert" },
 };
 
 function StatusDot({ icon }: { icon: string }) {
@@ -19,7 +24,7 @@ function StatusDot({ icon }: { icon: string }) {
     ? "bg-danger"
     : isAlert
       ? "bg-warning"
-      : "bg-teal";
+      : "bg-accent";
   return <span className={`w-1.5 h-1.5 rounded-full ${color} shrink-0`} />;
 }
 

@@ -6,6 +6,7 @@ from the current strategy, drafts personalized outreach for each,
 and logs the pivot to Neo4j.
 """
 
+import asyncio
 import uuid
 from datetime import datetime, timezone
 
@@ -101,12 +102,12 @@ async def run_pivot_drafting(trigger_event: dict) -> dict:
             "emails": [{"company": str, "domain": str, "subject": str, "body": str}, ...]
         }
     """
-    strategy = _get_current_strategy()
+    strategy = await asyncio.to_thread(_get_current_strategy)
     if not strategy:
         return {"error": "No strategy found"}
 
     competitor = trigger_event.get("competitor", "")
-    affected = _get_affected_leads(competitor)
+    affected = await asyncio.to_thread(_get_affected_leads, competitor)
 
     if not affected:
         return {
@@ -126,7 +127,7 @@ async def run_pivot_drafting(trigger_event: dict) -> dict:
             "body": email.get("body", ""),
         })
 
-    _log_pivot_event(trigger_event, len(emails))
+    await asyncio.to_thread(_log_pivot_event, trigger_event, len(emails))
 
     return {
         "trigger": trigger_event,

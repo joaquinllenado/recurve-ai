@@ -8,9 +8,11 @@ For each lead targeted by the current strategy:
   4. If >60% of leads are Disregard, triggers a strategy pivot
 """
 
+import asyncio
 import uuid
 from datetime import datetime, timezone
 
+from services.feed_manager import feed_manager
 from services.neo4j_service import get_session
 from services.tavily_service import fact_check_lead
 from services.slm_service import classify_lead
@@ -188,11 +190,13 @@ async def validate_single_lead(
     result = await classify_lead(product_description, trigger_events, company_context)
     classification = result["classification"]
 
-    _update_lead_classification(domain, classification)
+    await asyncio.to_thread(_update_lead_classification, domain, classification)
 
     for source in evidence.get("sources", []):
         if source.get("url"):
-            _store_evidence(domain, source["url"], source.get("summary", ""))
+            await asyncio.to_thread(
+                _store_evidence, domain, source["url"], source.get("summary", "")
+            )
 
     mismatch_type = None
     mismatch_details = None
@@ -201,7 +205,7 @@ async def validate_single_lead(
         mismatch_details = evidence.get("mismatch_details") or (
             f"{name} classified as Disregard by the SLM."
         )
-        _store_lesson(domain, mismatch_type, mismatch_details)
+        await asyncio.to_thread(_store_lesson, domain, mismatch_type, mismatch_details)
 
     return {
         "company": name,
@@ -232,29 +236,50 @@ async def run_validation_loop(strategy_version: int | None = None) -> dict:
         }
     """
     if strategy_version is not None:
-        with get_session() as session:
-            result = session.run(
-                "MATCH (s:Strategy {version: $v}) RETURN s {.*} AS strategy",
-                v=strategy_version,
-            )
-            record = result.single()
-            strategy = dict(record["strategy"]) if record else None
+        def _fetch_by_version(v: int):
+            with get_session() as session:
+                result = session.run(
+                    "MATCH (s:Strategy {version: $v}) RETURN s {.*} AS strategy",
+                    v=v,
+                )
+                record = result.single()
+                return dict(record["strategy"]) if record else None
+
+        strategy = await asyncio.to_thread(_fetch_by_version, strategy_version)
     else:
-        strategy = _get_current_strategy()
+        strategy = await asyncio.to_thread(_get_current_strategy)
 
     if not strategy:
         return {"error": "No strategy found"}
 
     version = strategy["version"]
     product_description = strategy.get("product_description", "")
-    leads = _get_leads_for_strategy(version)
+    leads = await asyncio.to_thread(_get_leads_for_strategy, version)
 
     if not leads:
         return {"error": f"No leads targeted by strategy v{version}"}
 
     results = []
-    for company in leads:
+    total = len(leads)
+    for idx, company in enumerate(leads, 1):
+        await feed_manager.broadcast(
+            "lead_validating",
+            {
+                "company": company.get("name", "?"),
+                "progress": f"{idx}/{total}",
+                "status": f"Validating {company.get('name', '?')}...",
+            },
+        )
         result = await validate_single_lead(company, product_description)
+        await feed_manager.broadcast(
+            "lead_validated",
+            {
+                "company": result["company"],
+                "classification": result["classification"],
+                "progress": f"{idx}/{total}",
+                "status": f"{result['company']} → {result['classification']}",
+            },
+        )
         results.append(result)
 
     counts = {"Strike": 0, "Monitor": 0, "Disregard": 0}
@@ -266,9 +291,10 @@ async def run_validation_loop(strategy_version: int | None = None) -> dict:
     pivot_triggered = disregard_rate > FAILURE_THRESHOLD
     if pivot_triggered:
         disregarded = [r["company"] for r in results if r["classification"] == "Disregard"]
-        _store_pivot_lesson(
+        await asyncio.to_thread(
+            _store_pivot_lesson,
             f"Disregard rate {disregard_rate:.0%} exceeds {FAILURE_THRESHOLD:.0%} threshold. "
-            f"Disregarded leads: {', '.join(disregarded)}. Strategy needs refinement."
+            f"Disregarded leads: {', '.join(disregarded)}. Strategy needs refinement.",
         )
 
     return {

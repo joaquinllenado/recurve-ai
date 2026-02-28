@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { postMockTrigger } from "../api/client";
+import { postSimulateOutage } from "../api/client";
 
 export function MockTriggerButton() {
   const [loading, setLoading] = useState(false);
@@ -9,10 +9,7 @@ export function MockTriggerButton() {
     setError(null);
     setLoading(true);
     try {
-      await postMockTrigger({
-        status: "critical_outage",
-        competitor: "DigitalOcean",
-      });
+      await postSimulateOutage("DigitalOcean");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Trigger failed");
     } finally {
